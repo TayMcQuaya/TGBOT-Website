@@ -28,6 +28,8 @@ body {
     max-width: 1200px;
     margin: 0 auto;
     padding: 0 20px;
+    position: relative;
+    z-index: 1;
 }
 
 /* Header styles */
@@ -38,19 +40,21 @@ header {
     position: fixed;
     width: 100%;
     top: 0;
+    left: 0;
     z-index: 1000;
 }
 
 .logo {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 15px;
 }
 
 .logo-img {
-    width: 40px;
+    width: auto;
     height: 40px;
     object-fit: contain;
+    filter: brightness(0) invert(1);
 }
 
 .logo span {
@@ -261,6 +265,9 @@ footer {
     color: var(--text-gray);
     background-color: var(--secondary-dark);
     margin-top: 40px;
+    width: 100%;
+    left: 0;
+    position: relative;
 }
 
 /* Mobile responsiveness */
@@ -305,6 +312,14 @@ footer {
         width: 100%;
         justify-content: center;
     }
+
+    .logo-img {
+        height: 32px;
+    }
+
+    .hero-decoration {
+        display: none;
+    }
 }
 
 /* Floating animation */
@@ -323,4 +338,20 @@ footer {
     backdrop-filter: blur(10px);
     background-color: rgba(44, 62, 80, 0.8);
     border: 1px solid rgba(52, 152, 219, 0.2);
+}
+
+/* Hero decoration */
+.hero-decoration {
+    position: absolute;
+    top: 50%;
+    right: -20%;
+    transform: translateY(-50%);
+    width: 40%;
+    opacity: 0.1;
+    z-index: 0;
+}
+
+.decoration-img {
+    width: 100%;
+    height: auto;
 } 
