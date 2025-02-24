@@ -12,63 +12,52 @@ const {
     NODE_ENV = 'development',
     RATE_LIMIT_WINDOW = 60000,
     MAX_REQUESTS_PER_WINDOW = 5,
-    DB_NAME = 'waitlist.db',
-    BACKUP_DIRECTORY = 'backups',
-    BACKUP_RETENTION_DAYS = 7
+    DB_NAME = 'waitlist.db'
 } = process.env;
 
-// Create backup directory if it doesn't exist
-const backupDir = path.join(__dirname, BACKUP_DIRECTORY);
-if (!fs.existsSync(backupDir)) {
-    fs.mkdirSync(backupDir);
-}
-
-// Database connection with better error handling
+// Database connection
 let db;
 function connectDatabase() {
     return new Promise((resolve, reject) => {
-        db = new sqlite3.Database(DB_NAME, (err) => {
+        const dbFile = path.join(__dirname, DB_NAME);
+        
+        // Simple database connection
+        db = new sqlite3.Database(dbFile, (err) => {
             if (err) {
                 console.error('Database connection error:', err);
                 reject(err);
                 return;
             }
-            console.log(`Connected to database: ${DB_NAME}`);
+            console.log(`Connected to database: ${dbFile}`);
             resolve(db);
         });
     });
 }
 
-// Function to create database backup
-function backupDatabase() {
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const backupFile = path.join(backupDir, `waitlist-${timestamp}.db`);
-    
-    fs.copyFile(DB_NAME, backupFile, (err) => {
-        if (err) {
-            console.error('Backup failed:', err);
-            return;
-        }
-        console.log(`Backup created: ${backupFile}`);
+// Initialize database and create table
+async function initializeDatabase() {
+    try {
+        await connectDatabase();
         
-        // Keep only the specified number of backups
-        fs.readdir(backupDir, (err, files) => {
-            if (err) {
-                console.error('Error reading backup directory:', err);
-                return;
-            }
-            
-            files = files.filter(f => f.startsWith('waitlist-'))
-                        .sort()
-                        .reverse();
-            
-            files.slice(parseInt(BACKUP_RETENTION_DAYS)).forEach(file => {
-                fs.unlink(path.join(backupDir, file), err => {
-                    if (err) console.error(`Error deleting old backup ${file}:`, err);
-                });
+        return new Promise((resolve, reject) => {
+            db.run(`CREATE TABLE IF NOT EXISTS waitlist (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                email TEXT UNIQUE,
+                signup_date DATETIME DEFAULT CURRENT_TIMESTAMP
+            )`, (err) => {
+                if (err) {
+                    console.error('Error creating table:', err);
+                    reject(err);
+                    return;
+                }
+                console.log('Database initialized successfully');
+                resolve();
             });
         });
-    });
+    } catch (err) {
+        console.error('Database initialization failed:', err);
+        process.exit(1);
+    }
 }
 
 // Middleware for basic request logging
@@ -88,43 +77,21 @@ app.use((err, req, res, next) => {
 });
 
 app.use(express.json());
-app.use(cors());
 
-// Initialize database and create table
-async function initializeDatabase() {
-    try {
-        await connectDatabase();
-        
-        return new Promise((resolve, reject) => {
-            db.serialize(() => {
-                db.run(`CREATE TABLE IF NOT EXISTS waitlist (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    email TEXT UNIQUE,
-                    signup_date DATETIME DEFAULT CURRENT_TIMESTAMP
-                )`, (err) => {
-                    if (err) {
-                        console.error('Error creating table:', err);
-                        reject(err);
-                        return;
-                    }
-                    
-                    db.run(`CREATE INDEX IF NOT EXISTS idx_email ON waitlist(email)`, (err) => {
-                        if (err) {
-                            console.error('Error creating index:', err);
-                            reject(err);
-                            return;
-                        }
-                        console.log('Database initialized successfully');
-                        resolve();
-                    });
-                });
-            });
-        });
-    } catch (err) {
-        console.error('Database initialization failed:', err);
-        process.exit(1);
-    }
-}
+// Simple CORS configuration
+app.use(cors({
+    origin: NODE_ENV === 'development' 
+        ? [
+            'http://localhost:8000',
+            'http://127.0.0.1:8000',
+            'http://192.168.1.19:8000',
+            'http://[::]:8000',
+            'http://192.168.1.14:8000'  // Your mobile device IP
+          ]
+        : ['https://your-production-domain.com'],
+    methods: ['GET', 'POST', 'OPTIONS'],
+    allowedHeaders: ['Content-Type']
+}));
 
 // Rate limiting configuration
 const rateLimit = {};
@@ -194,10 +161,6 @@ app.get('/api/stats', (req, res) => {
         });
     });
 });
-
-// Create daily backup
-setInterval(backupDatabase, 24 * 60 * 60 * 1000);
-backupDatabase(); // Initial backup
 
 // Cleanup old rate limiting data
 setInterval(() => {

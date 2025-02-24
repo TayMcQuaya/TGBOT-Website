@@ -411,15 +411,35 @@ footer {
         text-align: left;
     }
 
+    /* Updated form styles for mobile */
     form {
+        display: flex;
         flex-direction: column;
+        gap: 15px;
+        width: 100%;
+    }
+
+    input[type="email"] {
+        width: 100%;
+        min-height: 44px; /* Better touch target size */
+        font-size: 16px; /* Prevent zoom on iOS */
+        padding: 12px;
+        -webkit-appearance: none; /* Remove iOS default styles */
+        appearance: none;
     }
 
     button {
         width: 100%;
+        min-height: 44px; /* Better touch target size */
         justify-content: center;
+        padding: 12px 24px;
+        font-size: 16px;
+        -webkit-appearance: none; /* Remove iOS default styles */
+        appearance: none;
+        margin-top: 5px;
     }
 
+    /* Rest of the mobile styles */
     .logo {
         gap: 15px;
     }
