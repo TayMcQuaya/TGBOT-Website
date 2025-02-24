@@ -1,4 +1,13 @@
-const API_URL = 'http://localhost:3000/api/waitlist';
+// API URLs for different environments
+const API_URLS = {
+    local: 'http://localhost:3000/api/waitlist',
+    production: 'https://your-digitalocean-url.com/api/waitlist' // Replace with your actual DigitalOcean URL
+};
+
+// Choose API URL based on hostname
+const API_URL = window.location.hostname === 'localhost' 
+    ? API_URLS.local 
+    : API_URLS.production;
 
 // Function to show custom notification
 function showNotification(message, isSuccess = true) {
