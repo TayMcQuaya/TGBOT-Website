@@ -17,8 +17,8 @@ function getDevServerUrl() {
 const API_URLS = {
     // For local development, automatically detect the appropriate URL
     development: getDevServerUrl(),
-    // For production, use your actual domain
-    production: 'https://api.your-production-domain.com/api/waitlist'  // Update this when deploying
+    // For production, use the config value that will be set during build
+    production: window.CONFIG?.SERVER_URL ? `${window.CONFIG.SERVER_URL}/api/waitlist` : '/api/waitlist'
 };
 
 // Choose API URL based on hostname

@@ -4,6 +4,7 @@ package-lock.json
 
 # Environment
 .env
+.env.local
 .env.development
 .env.production 
 
@@ -39,3 +40,14 @@ exports/
 backups/
 
 dev_data/
+
+# Environment Configuration
+js/config.js
+
+# Environment files
+.env.*
+!.env.example
+
+# Build output
+dist/
+build/

@@ -22,40 +22,205 @@ A complete waitlist system with frontend form and backend management.
 
 ## Production Setup
 
-1. **Backend (DigitalOcean):**
+### 1. GitHub Repository Setup
+
+1. **Initialize Git and Push to GitHub:**
    ```bash
-   # On your DigitalOcean droplet
-   git clone your-repo
-   cd server
-   npm install
-   
-   # Create production env file
-   cp .env.example .env.production
-   
-   # Edit .env.production with your values:
-   # - Set NODE_ENV=production
-   # - Set CORS_ALLOWED_ORIGIN to your frontend domain
-   # - Generate and set a secure API_KEY
-   
-   # Start with PM2
-   npm install -g pm2
-   pm2 start server.js --name waitlist-api
+   git init
+   git add .
+   git commit -m "Initial commit"
+   git branch -M main
+   git remote add origin your-github-repo-url
+   git push -u origin main
    ```
 
-2. **Frontend Setup:**
-   - Edit `js/main.js`:
-     ```javascript
-     // Update the production API URL
-     production: 'https://your-digitalocean-ip:3000/api/waitlist'
-     // or if you have a domain:
-     production: 'https://api.your-domain.com/api/waitlist'
+2. **Configure Git to Ignore Sensitive Files:**
+   - Ensure `.gitignore` includes:
      ```
-   - Deploy the frontend files to your hosting (Netlify, Vercel, etc.)
+     # Environment files
+     .env.*
+     !.env.example
+     js/config.js
+     ```
+   - Keep `js/config.template.js` in the repository
 
-3. **Domain & SSL:**
-   - Point your domain to your DigitalOcean IP
-   - Set up SSL certificates (recommended: Let's Encrypt)
-   - Update CORS settings in `.env.production`
+### 2. DigitalOcean Droplet Setup
+
+1. **Initial Server Setup:**
+   ```bash
+   # SSH into your droplet
+   ssh root@your-droplet-ip
+
+   # Update system packages
+   apt update && apt upgrade -y
+
+   # Install Node.js and npm
+   curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+   apt install -y nodejs
+
+   # Install PM2 globally
+   npm install -g pm2
+
+   # Install nginx
+   apt install -y nginx
+
+   # Install certbot for SSL
+   apt install -y certbot python3-certbot-nginx
+   ```
+
+2. **Clone and Setup Application:**
+   ```bash
+   # Create application directory
+   mkdir -p /var/www
+   cd /var/www
+
+   # Clone your repository
+   git clone your-github-repo-url waitlist-app
+   cd waitlist-app
+
+   # Setup backend
+   cd server
+   npm install
+   cp .env.example .env.production
+   ```
+
+3. **Configure Environment:**
+   ```bash
+   # Edit production environment file
+   nano .env.production
+   ```
+   Update the following values:
+   ```env
+   NODE_ENV=production
+   CORS_ALLOWED_ORIGIN=your-frontend-domain
+   API_KEY=generate-secure-key-here
+   SERVER_URL=https://your-domain-or-ip
+   ```
+
+4. **Setup Frontend Configuration:**
+   ```bash
+   # Create production config
+   cd ../js
+   cp config.template.js config.js
+   nano config.js
+   ```
+   Update with your production values:
+   ```javascript
+   window.CONFIG = {
+       SERVER_URL: 'https://your-domain-or-ip'
+   };
+   ```
+
+### 3. Nginx Configuration
+
+1. **Create Nginx Configuration:**
+   ```bash
+   nano /etc/nginx/sites-available/waitlist
+   ```
+   Add the following configuration:
+   ```nginx
+   # Frontend configuration
+   server {
+       listen 80;
+       server_name your-frontend-domain;
+       root /var/www/waitlist-app;
+       index index.html;
+
+       location / {
+           try_files $uri $uri/ =404;
+       }
+   }
+
+   # Backend configuration
+   server {
+       listen 80;
+       server_name api.your-domain;
+
+       location / {
+           proxy_pass http://localhost:3000;
+           proxy_http_version 1.1;
+           proxy_set_header Upgrade $http_upgrade;
+           proxy_set_header Connection 'upgrade';
+           proxy_set_header Host $host;
+           proxy_cache_bypass $http_upgrade;
+       }
+   }
+   ```
+
+2. **Enable the Configuration:**
+   ```bash
+   ln -s /etc/nginx/sites-available/waitlist /etc/nginx/sites-enabled/
+   nginx -t
+   systemctl restart nginx
+   ```
+
+3. **Setup SSL with Let's Encrypt:**
+   ```bash
+   certbot --nginx -d your-frontend-domain -d api.your-domain
+   ```
+
+### 4. Start Application
+
+1. **Start Backend with PM2:**
+   ```bash
+   cd /var/www/waitlist-app/server
+   pm2 start server.js --name waitlist-api
+   pm2 save
+   pm2 startup
+   ```
+
+2. **Monitor Application:**
+   ```bash
+   pm2 status
+   pm2 logs waitlist-api
+   ```
+
+### 5. Security Setup
+
+1. **Setup Firewall:**
+   ```bash
+   # Allow only necessary ports
+   ufw allow ssh
+   ufw allow 'Nginx Full'
+   ufw enable
+   ```
+
+2. **Regular Updates:**
+   ```bash
+   # Create update script
+   nano /root/update.sh
+   ```
+   Add the following:
+   ```bash
+   #!/bin/bash
+   apt update
+   apt upgrade -y
+   npm audit fix
+   ```
+   Make it executable:
+   ```bash
+   chmod +x /root/update.sh
+   ```
+
+### 6. Backup Setup
+
+1. **Configure Automatic Backups:**
+   ```bash
+   # Create backup directory
+   mkdir -p /var/www/waitlist-app/server/backups
+
+   # Set correct permissions
+   chown -R www-data:www-data /var/www/waitlist-app/server/backups
+   ```
+
+2. **Setup Daily Database Backup:**
+   ```bash
+   crontab -e
+   ```
+   Add:
+   ```
+   0 0 * * * cd /var/www/waitlist-app/server && node manage-waitlist.js prod export
+   ```
 
 ## Environment Files
 
