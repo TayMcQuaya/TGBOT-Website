@@ -1,7 +1,22 @@
+// Function to get the server URL for development
+function getDevServerUrl() {
+    // Frontend runs on port 8000, but backend always runs on 3000
+    const currentHost = window.location.hostname;
+    const backendPort = '3000'; // Backend server port
+
+    // If accessing via IP or localhost, use the same host but with backend port
+    if (currentHost === 'localhost' || currentHost.match(/^(192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.|127\.0\.0\.1)/)) {
+        return `http://${currentHost}:${backendPort}/api/waitlist`;
+    }
+    
+    // Fallback to localhost if something goes wrong
+    return 'http://localhost:3000/api/waitlist';
+}
+
 // API URLs for different environments
 const API_URLS = {
-    // For local development, use local IP for mobile testing
-    development: 'http://192.168.1.19:3000/api/waitlist',
+    // For local development, automatically detect the appropriate URL
+    development: getDevServerUrl(),
     // For production, use your actual domain
     production: 'https://api.your-production-domain.com/api/waitlist'  // Update this when deploying
 };
