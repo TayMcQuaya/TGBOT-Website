@@ -8,6 +8,6 @@ window.CONFIG = {
         // Frontend hosted on GitHub Pages with custom domain
         WEBSITE_URL: 'https://tradebychat.xyz',
         // Backend on DigitalOcean
-        SERVER_URL: 'https://167.99.149.113'
+        SERVER_URL: 'https://api.tradebychat.xyz'
     }
 }; 

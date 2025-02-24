@@ -20,207 +20,155 @@ A complete waitlist system with frontend form and backend management.
    - Desktop: Open `http://localhost:8000`
    - Mobile: Open `http://YOUR_COMPUTER_IP:8000` (same network required)
 
-## Production Setup
+## Production Environment
 
-### 1. GitHub Repository Setup
+### Quick Reference
+- Frontend URL: https://tradebychat.xyz
+- Backend API: https://api.tradebychat.xyz
+- Server IP: 167.99.149.113
 
-1. **Initialize Git and Push to GitHub:**
-   ```bash
-   git init
-   git add .
-   git commit -m "Initial commit"
-   git branch -M main
-   git remote add origin your-github-repo-url
-   git push -u origin main
-   ```
+### Server Access and Management
 
-2. **Configure Git to Ignore Sensitive Files:**
-   - Ensure `.gitignore` includes:
-     ```
-     # Environment files
-     .env.*
-     !.env.example
-     js/config.js
-     ```
-   - Keep `js/config.template.js` in the repository
+#### SSH Access
+```bash
+# Connect to DigitalOcean server
+ssh root@yourdropletIP
+```
 
-### 2. DigitalOcean Droplet Setup
+#### Application Status and Logs
+```bash
+# Check backend status
+pm2 status
+pm2 logs waitlist-api    # View backend logs
 
-1. **Initial Server Setup:**
-   ```bash
-   # SSH into your droplet
-   ssh root@your-droplet-ip
+# Check Nginx status
+systemctl status nginx
+nginx -t                 # Test Nginx configuration
 
-   # Update system packages
-   apt update && apt upgrade -y
+# Check SSL certificate
+certbot certificates
+```
 
-   # Install Node.js and npm
-   curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
-   apt install -y nodejs
+#### Update Application
+```bash
+# Navigate to application directory
+cd /var/www/waitlist-app
 
-   # Install PM2 globally
-   npm install -g pm2
+# Update from GitHub
+git pull origin main
 
-   # Install nginx
-   apt install -y nginx
+# Restart backend after updates
+cd server
+npm install              # If dependencies changed
+pm2 restart waitlist-api # Restart the application
+```
 
-   # Install certbot for SSL
-   apt install -y certbot python3-certbot-nginx
-   ```
+### Database Management
 
-2. **Clone and Setup Application:**
-   ```bash
-   # Create application directory
-   mkdir -p /var/www
-   cd /var/www
+#### View and Export Data
+```bash
+# Navigate to server directory
+cd /var/www/waitlist-app/server
 
-   # Clone your repository
-   git clone your-github-repo-url waitlist-app
-   cd waitlist-app
+# View all entries
+node manage-waitlist.js prod view
 
-   # Setup backend
-   cd server
-   npm install
-   cp .env.example .env.production
-   ```
+# Export to Excel
+node manage-waitlist.js prod export
 
-3. **Configure Environment:**
-   ```bash
-   # Edit production environment file
-   nano .env.production
-   ```
-   Update the following values:
-   ```env
-   NODE_ENV=production
-   CORS_ALLOWED_ORIGIN=your-frontend-domain
-   API_KEY=generate-secure-key-here
-   SERVER_URL=https://your-domain-or-ip
-   ```
+# Search specific email
+node manage-waitlist.js prod search user@example.com
 
-4. **Setup Frontend Configuration:**
-   ```bash
-   # Create production config
-   cd ../js
-   cp config.template.js config.js
-   nano config.js
-   ```
-   Update with your production values:
-   ```javascript
-   window.CONFIG = {
-       SERVER_URL: 'https://your-domain-or-ip'
-   };
-   ```
+# Delete entry
+node manage-waitlist.js prod delete-email user@example.com
+```
 
-### 3. Nginx Configuration
+#### Backup Database
+```bash
+# Manual backup
+cd /var/www/waitlist-app/server
+cp prod_data/waitlist.db backups/waitlist-$(date +%Y%m%d).db
 
-1. **Create Nginx Configuration:**
-   ```bash
-   nano /etc/nginx/sites-available/waitlist
-   ```
-   Add the following configuration:
-   ```nginx
-   # Frontend configuration
-   server {
-       listen 80;
-       server_name your-frontend-domain;
-       root /var/www/waitlist-app;
-       index index.html;
+# View backups
+ls -l backups/
+```
 
-       location / {
-           try_files $uri $uri/ =404;
-       }
-   }
+### Configuration Files
 
-   # Backend configuration
-   server {
-       listen 80;
-       server_name api.your-domain;
+#### Important Locations
+```bash
+# Nginx configuration
+nano /etc/nginx/sites-available/waitlist
 
-       location / {
-           proxy_pass http://localhost:3000;
-           proxy_http_version 1.1;
-           proxy_set_header Upgrade $http_upgrade;
-           proxy_set_header Connection 'upgrade';
-           proxy_set_header Host $host;
-           proxy_cache_bypass $http_upgrade;
-       }
-   }
-   ```
+# Environment file
+nano /var/www/waitlist-app/server/.env.production
 
-2. **Enable the Configuration:**
-   ```bash
-   ln -s /etc/nginx/sites-available/waitlist /etc/nginx/sites-enabled/
-   nginx -t
-   systemctl restart nginx
-   ```
+# Frontend configuration
+nano /var/www/waitlist-app/js/config.js
+```
 
-3. **Setup SSL with Let's Encrypt:**
-   ```bash
-   certbot --nginx -d your-frontend-domain -d api.your-domain
-   ```
+### Monitoring and Debugging
 
-### 4. Start Application
+#### View Logs
+```bash
+# Application logs
+pm2 logs waitlist-api
 
-1. **Start Backend with PM2:**
-   ```bash
-   cd /var/www/waitlist-app/server
-   pm2 start server.js --name waitlist-api
-   pm2 save
-   pm2 startup
-   ```
+# Nginx error logs
+tail -f /var/log/nginx/error.log
 
-2. **Monitor Application:**
-   ```bash
-   pm2 status
-   pm2 logs waitlist-api
-   ```
+# System logs
+journalctl -u nginx    # Nginx logs
+journalctl -u pm2-root # PM2 logs
+```
 
-### 5. Security Setup
+#### Server Resources
+```bash
+# View resource usage
+top
 
-1. **Setup Firewall:**
-   ```bash
-   # Allow only necessary ports
-   ufw allow ssh
-   ufw allow 'Nginx Full'
-   ufw enable
-   ```
+# View disk space
+df -h
 
-2. **Regular Updates:**
-   ```bash
-   # Create update script
-   nano /root/update.sh
-   ```
-   Add the following:
-   ```bash
-   #!/bin/bash
-   apt update
-   apt upgrade -y
-   npm audit fix
-   ```
-   Make it executable:
-   ```bash
-   chmod +x /root/update.sh
-   ```
+# View memory usage
+free -m
+```
 
-### 6. Backup Setup
+### Common Issues and Solutions
 
-1. **Configure Automatic Backups:**
-   ```bash
-   # Create backup directory
-   mkdir -p /var/www/waitlist-app/server/backups
+#### If Backend Won't Start
+1. Check logs: `pm2 logs waitlist-api`
+2. Verify environment: `cat .env.production`
+3. Check Node version: `node -v`
+4. Restart PM2: `pm2 restart waitlist-api`
 
-   # Set correct permissions
-   chown -R www-data:www-data /var/www/waitlist-app/server/backups
-   ```
+#### If Frontend Can't Connect
+1. Check CORS settings in `.env.production`
+2. Verify Nginx config: `nginx -t`
+3. Check SSL: `certbot certificates`
+4. Verify DNS: `dig api.tradebychat.xyz`
 
-2. **Setup Daily Database Backup:**
-   ```bash
-   crontab -e
-   ```
-   Add:
-   ```
-   0 0 * * * cd /var/www/waitlist-app/server && node manage-waitlist.js prod export
-   ```
+#### If Database Issues
+1. Check permissions: `ls -l prod_data/`
+2. Verify path in `.env.production`
+3. Try backup: `cp prod_data/waitlist.db prod_data/waitlist.db.backup`
+
+### Maintenance Schedule
+
+#### Daily
+- Check `pm2 status`
+- Monitor disk space: `df -h`
+- Review error logs: `pm2 logs waitlist-api --error`
+
+#### Weekly
+- Export database: `node manage-waitlist.js prod export`
+- Check for updates: `apt update`
+- Review backups: `ls -l backups/`
+
+#### Monthly
+- Update packages: `apt upgrade -y`
+- Clean old exports: `find exports/ -mtime +30 -delete`
+- Review SSL certificates: `certbot certificates`
 
 ## Environment Files
 
