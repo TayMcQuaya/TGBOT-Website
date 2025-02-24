@@ -316,10 +316,7 @@ button:hover {
 }
 
 .benefit-content i {
-    background: var(--accent-gradient);
-    background-clip: text;
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
+    font-size: 16px;
 }
 
 /* Footer */
@@ -690,7 +687,10 @@ nav {
 .user-type-card ul li i {
     font-size: 16px;
     margin: 0;
-    color: var(--accent-green);
+    background: var(--accent-gradient);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
 }
 
 /* Mobile responsiveness update */
@@ -723,4 +723,18 @@ nav {
         var(--border-color),
         transparent
     );
+}
+
+/* Consistent checkmark styling */
+.fa-check {
+    background: var(--accent-gradient);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    font-size: 16px;
+}
+
+/* Update benefits section checkmarks */
+.benefit-content i {
+    font-size: 16px;
 } 
