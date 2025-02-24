@@ -380,8 +380,8 @@ footer {
 /* Mobile responsiveness */
 @media (max-width: 768px) {
     .hero {
+        padding: 140px 0 40px;
         grid-template-columns: 1fr;
-        padding: 100px 0 40px;
         text-align: center;
     }
 
@@ -452,6 +452,35 @@ footer {
     .contact-link {
         font-size: 14px;
         padding: 6px 12px;
+    }
+
+    .features-background,
+    .user-types-background {
+        position: fixed;
+        height: 100vh;
+        width: 100vw;
+        top: 0;
+        left: 0;
+        transform: none;
+    }
+
+    .features-bg-image,
+    .user-types-bg-image {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        transform: scale(1.5);
+        opacity: 0.05;
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%) scale(1.5);
+    }
+
+    .features,
+    .user-types {
+        position: relative;
+        z-index: 1;
     }
 }
 
@@ -737,4 +766,56 @@ nav {
 /* Update benefits section checkmarks */
 .benefit-content i {
     font-size: 16px;
+}
+
+/* Update header mobile styles */
+@media (max-width: 768px) {
+    /* Improve header layout */
+    header {
+        padding: 10px 0;
+    }
+
+    nav {
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .logo {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .nav-contact {
+        width: 100%;
+        margin: 0;
+    }
+
+    .contact-link {
+        justify-content: center;
+        font-size: 14px;
+    }
+
+    /* Simplify contact display on mobile */
+    .contact-link span {
+        display: none;
+    }
+    
+    .contact-link i {
+        margin: 0;
+        font-size: 20px;
+    }
+
+    /* Background image improvements */
+    .features-background,
+    .user-types-background {
+        height: 150%; /* Extend height for better coverage */
+        transform: translateY(-15%); /* Adjust position */
+    }
+
+    .features-bg-image,
+    .user-types-bg-image {
+        transform: scale(2); /* Zoom out more on mobile */
+        transform-origin: center center;
+        transition: transform 0.3s ease;
+    }
 } 
