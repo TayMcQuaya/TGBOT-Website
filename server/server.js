@@ -1,10 +1,16 @@
-require('dotenv').config();
+// Load environment variables based on NODE_ENV
+const envFile = process.env.NODE_ENV === 'production' ? '.env.production' : '.env.development';
+require('dotenv').config({ path: envFile });
+
 const express = require('express');
 const sqlite3 = require('sqlite3').verbose();
 const app = express();
 const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
+const morgan = require('morgan');
 
 // Environment variables with defaults
 const {
@@ -12,16 +18,115 @@ const {
     NODE_ENV = 'development',
     RATE_LIMIT_WINDOW = 60000,
     MAX_REQUESTS_PER_WINDOW = 5,
-    DB_NAME = 'waitlist.db'
+    DB_NAME = 'waitlist.db',
+    CORS_ALLOWED_ORIGIN = '*',
+    API_KEY = 'dev_key'
 } = process.env;
 
-// Database connection
+const isDevelopment = NODE_ENV === 'development';
+
+// Security middleware - configured for both environments
+app.use(helmet({
+    contentSecurityPolicy: isDevelopment ? false : undefined, // Disable CSP in development
+}));
+app.disable('x-powered-by');
+
+// Logging configuration
+if (isDevelopment) {
+    // Development: Log everything to console
+    app.use(morgan('dev'));
+} else {
+    // Production: Log errors to file, basic logs to console
+    app.use(morgan('combined', {
+        skip: (req, res) => res.statusCode < 400,
+        stream: fs.createWriteStream(path.join(__dirname, 'error.log'), { flags: 'a' })
+    }));
+    app.use(morgan('short')); // Basic logging to console
+}
+
+// Rate limiting - more lenient in development
+const limiter = rateLimit({
+    windowMs: parseInt(RATE_LIMIT_WINDOW),
+    max: parseInt(MAX_REQUESTS_PER_WINDOW),
+    message: { error: 'Too many requests. Please try again later.' },
+    standardHeaders: true,
+    legacyHeaders: false,
+    skip: isDevelopment ? (req) => true : undefined // Skip rate limiting in development
+});
+
+app.use(limiter);
+
+// CORS configuration
+const corsOptions = {
+    origin: function(origin, callback) {
+        if (isDevelopment) {
+            // In development, allow requests from:
+            // 1. No origin (like Postman)
+            // 2. localhost with any port
+            // 3. Local IP addresses with any port
+            if (!origin) {
+                callback(null, true);
+                return;
+            }
+
+            try {
+                const url = new URL(origin);
+                const isLocalhost = url.hostname === 'localhost' || url.hostname === '127.0.0.1';
+                const isLocalIP = url.hostname.match(/^(192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)/) !== null;
+                
+                if (isLocalhost || isLocalIP) {
+                    callback(null, true);
+                    return;
+                }
+            } catch (error) {
+                callback(new Error('Invalid origin'));
+                return;
+            }
+            
+            callback(new Error('Not allowed by CORS'));
+        } else {
+            // In production, only allow the specified domain
+            callback(null, CORS_ALLOWED_ORIGIN === origin);
+        }
+    },
+    methods: ['GET', 'POST', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'x-api-key'],
+    credentials: true
+};
+
+app.use(cors(corsOptions));
+app.use(express.json());
+
+// API key middleware - only enforced in production
+const apiKeyAuth = (req, res, next) => {
+    const apiKey = req.headers['x-api-key'];
+    if (!isDevelopment && apiKey !== API_KEY) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+    next();
+};
+
+// Database configuration
+const getDbPath = () => {
+    const dbDir = path.join(__dirname, isDevelopment ? 'dev_data' : 'prod_data');
+    if (!fs.existsSync(dbDir)) {
+        fs.mkdirSync(dbDir, { recursive: true });
+    }
+    return path.join(dbDir, DB_NAME);
+};
+
+// Database connection with better error handling
 let db;
 function connectDatabase() {
     return new Promise((resolve, reject) => {
-        const dbFile = path.join(__dirname, DB_NAME);
+        const dbFile = getDbPath();
         
-        // Simple database connection
+        // Ensure database directory exists
+        const dbDir = path.dirname(dbFile);
+        if (!fs.existsSync(dbDir)) {
+            fs.mkdirSync(dbDir, { recursive: true });
+        }
+        
         db = new sqlite3.Database(dbFile, (err) => {
             if (err) {
                 console.error('Database connection error:', err);
@@ -34,16 +139,23 @@ function connectDatabase() {
     });
 }
 
-// Initialize database and create table
+// Initialize database with automatic backups
 async function initializeDatabase() {
     try {
         await connectDatabase();
+        
+        // Set up automatic daily backups
+        if (NODE_ENV === 'production') {
+            setInterval(createDatabaseBackup, 24 * 60 * 60 * 1000);
+        }
         
         return new Promise((resolve, reject) => {
             db.run(`CREATE TABLE IF NOT EXISTS waitlist (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 email TEXT UNIQUE,
-                signup_date DATETIME DEFAULT CURRENT_TIMESTAMP
+                signup_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+                ip_address TEXT,
+                user_agent TEXT
             )`, (err) => {
                 if (err) {
                     console.error('Error creating table:', err);
@@ -60,124 +172,139 @@ async function initializeDatabase() {
     }
 }
 
-// Middleware for basic request logging
-app.use((req, res, next) => {
-    const start = Date.now();
-    res.on('finish', () => {
-        const duration = Date.now() - start;
-        console.log(`[${NODE_ENV}] ${req.method} ${req.url} ${res.statusCode} - ${duration}ms`);
+// Database backup function
+async function createDatabaseBackup() {
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const backupDir = path.join(__dirname, 'backups');
+    const backupFile = path.join(backupDir, `waitlist-${timestamp}.db`);
+
+    // Ensure backup directory exists
+    if (!fs.existsSync(backupDir)) {
+        fs.mkdirSync(backupDir, { recursive: true });
+    }
+
+    // Create backup
+    fs.copyFileSync(path.join(__dirname, DB_NAME), backupFile);
+
+    // Clean old backups (keep last 7 days)
+    const files = fs.readdirSync(backupDir);
+    const oldFiles = files
+        .filter(f => f.startsWith('waitlist-'))
+        .sort()
+        .slice(0, -7);
+
+    oldFiles.forEach(file => {
+        fs.unlinkSync(path.join(backupDir, file));
     });
-    next();
-});
+}
 
-// Error handling middleware
-app.use((err, req, res, next) => {
-    console.error('Server error:', err);
-    res.status(500).json({ error: 'Internal server error' });
-});
-
-app.use(express.json());
-
-// Simple CORS configuration
-app.use(cors({
-    origin: NODE_ENV === 'development' 
-        ? [
-            'http://localhost:8000',
-            'http://127.0.0.1:8000',
-            'http://192.168.1.19:8000',
-            'http://[::]:8000',
-            'http://192.168.1.14:8000'  // Your mobile device IP
-          ]
-        : ['https://your-production-domain.com'],
-    methods: ['GET', 'POST', 'OPTIONS'],
-    allowedHeaders: ['Content-Type']
-}));
-
-// Rate limiting configuration
-const rateLimit = {};
-const RATE_LIMIT_MS = parseInt(RATE_LIMIT_WINDOW);
-const MAX_REQUESTS = parseInt(MAX_REQUESTS_PER_WINDOW);
-
-app.post('/api/waitlist', (req, res) => {
-    const ip = req.ip;
-    const now = Date.now();
-    
-    if (!rateLimit[ip]) {
-        rateLimit[ip] = {
-            count: 1,
-            firstRequest: now
-        };
-    } else {
-        if (now - rateLimit[ip].firstRequest > RATE_LIMIT_MS) {
-            rateLimit[ip] = {
-                count: 1,
-                firstRequest: now
-            };
-        } else if (rateLimit[ip].count >= MAX_REQUESTS) {
-            return res.status(429).json({ 
-                error: 'Too many requests. Please try again later.' 
-            });
-        } else {
-            rateLimit[ip].count++;
+// Waitlist submission endpoint
+app.post('/api/waitlist', async (req, res) => {
+    try {
+        const { email } = req.body;
+        
+        if (!email || !email.includes('@') || email.length > 255) {
+            return res.status(400).json({ error: 'Invalid email format' });
         }
-    }
-
-    const { email } = req.body;
-    
-    if (!email || !email.includes('@') || email.length > 255) {
-        return res.status(400).json({ error: 'Invalid email format' });
-    }
-    
-    db.run('INSERT INTO waitlist (email) VALUES (?)', [email], function(err) {
-        if (err) {
-            if (err.code === 'SQLITE_CONSTRAINT') {
-                return res.status(409).json({ error: 'Email already registered' });
-            }
-            console.error('Database error:', err);
-            return res.status(500).json({ error: 'Server error' });
-        }
+        
+        // Store additional information
+        const userAgent = req.headers['user-agent'];
+        const ipAddress = req.ip;
+        
+        await new Promise((resolve, reject) => {
+            db.run(
+                'INSERT INTO waitlist (email, ip_address, user_agent) VALUES (?, ?, ?)',
+                [email, ipAddress, userAgent],
+                function(err) {
+                    if (err) {
+                        if (err.code === 'SQLITE_CONSTRAINT') {
+                            res.status(409).json({ error: 'Email already registered' });
+                        } else {
+                            console.error('Database error:', err);
+                            res.status(500).json({ error: 'Server error' });
+                        }
+                        reject(err);
+                        return;
+                    }
+                    resolve();
+                }
+            );
+        });
+        
         res.json({ message: 'Successfully joined waitlist!' });
-    });
+    } catch (error) {
+        console.error('Submission error:', error);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Protected statistics endpoint
+app.get('/api/stats', apiKeyAuth, async (req, res) => {
+    try {
+        const stats = await new Promise((resolve, reject) => {
+            db.get('SELECT COUNT(*) as total FROM waitlist', [], (err, row) => {
+                if (err) {
+                    reject(err);
+                    return;
+                }
+                resolve(row);
+            });
+        });
+        
+        res.json({ 
+            totalSignups: stats.total,
+            environment: NODE_ENV
+        });
+    } catch (error) {
+        console.error('Stats error:', error);
+        res.status(500).json({ error: 'Could not fetch statistics' });
+    }
 });
 
 // Health check endpoint
 app.get('/health', (req, res) => {
-    res.json({ 
-        status: 'healthy', 
+    const dbHealthy = db && db.open;
+    
+    res.status(dbHealthy ? 200 : 503).json({ 
+        status: dbHealthy ? 'healthy' : 'unhealthy',
         environment: NODE_ENV,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        database: dbHealthy ? 'connected' : 'disconnected'
     });
 });
 
-// Statistics endpoint
-app.get('/api/stats', (req, res) => {
-    db.get('SELECT COUNT(*) as total FROM waitlist', [], (err, row) => {
-        if (err) {
-            return res.status(500).json({ error: 'Could not fetch statistics' });
-        }
-        res.json({ 
-            totalSignups: row.total,
-            environment: NODE_ENV
-        });
+// Global error handler
+app.use((err, req, res, next) => {
+    console.error('Unhandled error:', err);
+    res.status(500).json({ 
+        error: NODE_ENV === 'production' 
+            ? 'Internal server error' 
+            : err.message 
     });
 });
 
-// Cleanup old rate limiting data
-setInterval(() => {
-    const now = Date.now();
-    Object.keys(rateLimit).forEach(ip => {
-        if (now - rateLimit[ip].firstRequest > RATE_LIMIT_MS) {
-            delete rateLimit[ip];
-        }
+// Start server with environment info
+const server = app.listen(PORT, () => {
+    console.log(`Server running in ${NODE_ENV} mode on port ${PORT}`);
+    console.log(`Database: ${getDbPath()}`);
+    console.log(`CORS allowed origins: ${JSON.stringify(corsOptions.origin)}`);
+    if (isDevelopment) {
+        console.log('Development mode: Rate limiting disabled, API key check disabled');
+    }
+});
+
+// Graceful shutdown
+process.on('SIGTERM', () => {
+    console.log('SIGTERM received. Shutting down gracefully...');
+    server.close(() => {
+        console.log('Server closed. Database connections cleaned up.');
+        db.close();
+        process.exit(0);
     });
-}, RATE_LIMIT_MS);
+});
 
 // Initialize database and start server
-initializeDatabase().then(() => {
-    app.listen(PORT, () => {
-        console.log(`Server running in ${NODE_ENV} mode on port ${PORT}`);
-    });
-}).catch(err => {
+initializeDatabase().catch(err => {
     console.error('Failed to start server:', err);
     process.exit(1);
 });

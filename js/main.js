@@ -1,21 +1,21 @@
 // API URLs for different environments
 const API_URLS = {
-    development: window.location.hostname === 'localhost' 
-        ? 'http://localhost:3000/api/waitlist'  // Use localhost when on computer
-        : `http://192.168.1.19:3000/api/waitlist`,  // Use computer's IP when on mobile
-    production: 'https://your-digitalocean-url.com/api/waitlist'
+    // For local development, use local IP for mobile testing
+    development: 'http://192.168.1.19:3000/api/waitlist',
+    // For production, use your actual domain
+    production: 'https://api.your-production-domain.com/api/waitlist'  // Update this when deploying
 };
 
-// Choose API URL based on environment
+// Choose API URL based on hostname
 const API_URL = window.location.hostname === 'localhost' || 
-                window.location.hostname.match(/^(192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.|127\.0\.0\.1|\[::])/)
-    ? API_URLS.development
+                window.location.hostname.match(/^(192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.|127\.0\.0\.1)/)
+    ? API_URLS.development 
     : API_URLS.production;
 
 console.log('Using API URL:', API_URL);
 
-// Function to show custom notification
-function showNotification(message, isSuccess = true) {
+// Function to show custom notification with retry option
+function showNotification(message, isSuccess = true, retryCallback = null) {
     // Remove any existing notifications
     const existingNotifications = document.querySelectorAll('.custom-notification');
     existingNotifications.forEach(notification => {
@@ -26,15 +26,23 @@ function showNotification(message, isSuccess = true) {
     const notification = document.createElement('div');
     notification.className = `custom-notification ${isSuccess ? 'success' : 'error'}`;
     
-    // Create content with larger icons and centered text
-    notification.innerHTML = `
+    // Create content with retry button for errors
+    let content = `
         <div class="notification-content">
             <i class="fas ${isSuccess ? 'fa-check-circle' : 'fa-exclamation-circle'} fa-bounce"></i>
             <p>${message}</p>
         </div>
     `;
+
+    if (!isSuccess && retryCallback) {
+        content += `
+            <button onclick="retrySubmission()" class="retry-button">
+                <i class="fas fa-redo"></i> Try Again
+            </button>
+        `;
+    }
     
-    // Add to document
+    notification.innerHTML = content;
     document.body.appendChild(notification);
     
     // Force reflow to trigger animation
@@ -45,15 +53,17 @@ function showNotification(message, isSuccess = true) {
         notification.classList.add('show');
     }, 10);
     
-    // Remove notification after 3 seconds
-    setTimeout(() => {
-        notification.classList.remove('show');
+    // Auto-hide successful notifications
+    if (isSuccess) {
         setTimeout(() => {
-            if (notification.parentElement) {
-                notification.parentElement.removeChild(notification);
-            }
-        }, 400); // Match the CSS transition duration
-    }, 3000);
+            notification.classList.remove('show');
+            setTimeout(() => {
+                if (notification.parentElement) {
+                    notification.parentElement.removeChild(notification);
+                }
+            }, 400);
+        }, 3000);
+    }
 }
 
 // Function to validate email
@@ -62,10 +72,52 @@ function isValidEmail(email) {
     return emailRegex.test(email);
 }
 
+// Function to handle form submission with timeout
+async function submitForm(email) {
+    try {
+        // Add timeout to prevent hanging
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+
+        const response = await fetch(API_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ email }),
+            signal: controller.signal
+        });
+        
+        clearTimeout(timeout);
+        
+        const data = await response.json();
+        
+        if (!response.ok) {
+            throw new Error(data.error || 'Failed to join waitlist. Please try again.');
+        }
+        
+        return { success: true, message: data.message };
+    } catch (error) {
+        console.error('Submission error:', error);
+        if (error.name === 'AbortError') {
+            return { 
+                success: false, 
+                message: 'Request timed out. Please check your connection and try again.' 
+            };
+        }
+        return { 
+            success: false, 
+            message: error.message || 'Something went wrong. Please try again.' 
+        };
+    }
+}
+
+// Initialize the form
 document.addEventListener('DOMContentLoaded', function() {
     const form = document.getElementById('emailForm');
     const emailInput = document.getElementById('email');
     const submitButton = form.querySelector('button[type="submit"]');
+    let lastEmail = '';
     
     // Disable form zooming on iOS
     emailInput.setAttribute('autocomplete', 'off');
@@ -78,6 +130,7 @@ document.addEventListener('DOMContentLoaded', function() {
         e.preventDefault();
         
         const email = emailInput.value.trim();
+        lastEmail = email;
         
         // Client-side validation
         if (!email) {
@@ -94,30 +147,37 @@ document.addEventListener('DOMContentLoaded', function() {
         submitButton.disabled = true;
         submitButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Joining...';
         
-        try {
-            const response = await fetch(API_URL, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ email })
-            });
-            
-            const data = await response.json();
-            
-            if (!response.ok) {
-                throw new Error(data.error || 'Failed to join waitlist. Please try again.');
-            }
-            
+        const result = await submitForm(email);
+        
+        if (result.success) {
             showNotification('Thanks for joining the waitlist! We\'ll contact you soon.', true);
             emailInput.value = '';
-        } catch (error) {
-            console.error('Submission error:', error);
-            showNotification(error.message || 'Something went wrong. Please try again.', false);
-        } finally {
-            // Re-enable form
-            submitButton.disabled = false;
-            submitButton.innerHTML = 'Join Waitlist <i class="fas fa-arrow-right"></i>';
+            gtag('event', 'waitlist_signup', { 'email': email }); // Google Analytics event
+        } else {
+            showNotification(result.message, false, () => {
+                emailInput.value = lastEmail;
+                submitForm(lastEmail);
+            });
         }
+        
+        // Re-enable form
+        submitButton.disabled = false;
+        submitButton.innerHTML = 'Join Waitlist <i class="fas fa-arrow-right"></i>';
     });
+    
+    // Add retry function to window scope
+    window.retrySubmission = async function() {
+        if (lastEmail) {
+            emailInput.value = lastEmail;
+            const result = await submitForm(lastEmail);
+            
+            if (result.success) {
+                showNotification('Thanks for joining the waitlist! We\'ll contact you soon.', true);
+                emailInput.value = '';
+                gtag('event', 'waitlist_signup', { 'email': lastEmail });
+            } else {
+                showNotification(result.message, false, () => retrySubmission());
+            }
+        }
+    };
 }); 
