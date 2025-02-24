@@ -2,7 +2,7 @@
 
 A complete waitlist system with frontend form and backend management.
 
-## Quick Start
+## Development Setup
 
 1. **Start the Backend:**
    ```bash
@@ -10,174 +10,166 @@ A complete waitlist system with frontend form and backend management.
    npm install
    node server.js
    ```
+   Backend will run on port 3000.
 
-2. **Open Frontend:**
-   - Open `index.html` in your browser
-   - Or use a local server (e.g., Live Server in VS Code)
+2. **Start the Frontend:**
+   - Use VS Code Live Server or any static server on port 8000
+   - Or serve the root directory on port 8000
 
-## Project Structure
-```
-frontend/
-├── index.html          # Waitlist signup page
-├── css/
-│   └── styles.css      # Styling
-└── js/
-    └── main.js         # Frontend logic
+3. **Local Testing:**
+   - Desktop: Open `http://localhost:8000`
+   - Mobile: Open `http://YOUR_COMPUTER_IP:8000` (same network required)
 
-server/
-├── server.js           # Main server file
-├── manage-waitlist.js  # Admin management tool
-├── .env               # Configuration
-└── WAITLIST-MANAGEMENT.md  # Detailed management guide
-```
+## Production Setup
 
-## Environment Setup
-
-1. **Create `.env` file in server folder:**
-   ```env
-   PORT=3000
-NODE_ENV=development # Change to 'production' when deploying
-
-# Rate Limiting
-RATE_LIMIT_WINDOW=60000  # 1 minute in milliseconds
-MAX_REQUESTS_PER_WINDOW=5
-
-# Database Configuration
-DB_NAME=waitlist.db
-BACKUP_RETENTION_DAYS=7
-
-# Backup Configuration
-BACKUP_DIRECTORY=backups
-EXPORT_DIRECTORY=exports
-MAX_EXPORT_BACKUPS=5
-
-# API Configuration (for frontend)
-LOCAL_API_URL=http://localhost:3000/api/waitlist
-PRODUCTION_API_URL=https://your-digitalocean-url.com/api/waitlist 
-   ```
-
-2. **For Production:**
-   - Update `NODE_ENV=production`
-   - Set proper `PRODUCTION_API_URL` in `js/main.js`
-
-## Managing Waitlist
-
-View entries:
-```bash
-cd server
-node manage-waitlist.js view
-```
-
-Export to Excel:
-```bash
-node manage-waitlist.js export
-```
-
-Delete entry:
-```bash
-node manage-waitlist.js delete-email user@example.com
-# or
-node manage-waitlist.js delete-id 1
-```
-
-## Features
-
-- 📝 Email collection form
-- 🎨 Beautiful notifications
-- 📊 Excel/CSV exports
-- 🔒 Rate limiting
-- 💾 Automatic backups
-- 📈 Statistics endpoint
-
-## API Endpoints
-
-- `POST /api/waitlist`: Submit email
-- `GET /health`: Server status
-- `GET /api/stats`: View total signups
-
-## Deployment Steps
-
-1. **Frontend:**
-   - Host `index.html` and assets on any static host
-   - Update API URL in `js/main.js`
-
-2. **Backend (DigitalOcean):**
+1. **Backend (DigitalOcean):**
    ```bash
+   # On your DigitalOcean droplet
    git clone your-repo
    cd server
    npm install
-   # Set up .env for production
-   pm2 start server.js
+   
+   # Create production env file
+   cp .env.example .env.production
+   
+   # Edit .env.production with your values:
+   # - Set NODE_ENV=production
+   # - Set CORS_ALLOWED_ORIGIN to your frontend domain
+   # - Generate and set a secure API_KEY
+   
+   # Start with PM2
+   npm install -g pm2
+   pm2 start server.js --name waitlist-api
+   ```
+
+2. **Frontend Setup:**
+   - Edit `js/main.js`:
+     ```javascript
+     // Update the production API URL
+     production: 'https://your-digitalocean-ip:3000/api/waitlist'
+     // or if you have a domain:
+     production: 'https://api.your-domain.com/api/waitlist'
+     ```
+   - Deploy the frontend files to your hosting (Netlify, Vercel, etc.)
+
+3. **Domain & SSL:**
+   - Point your domain to your DigitalOcean IP
+   - Set up SSL certificates (recommended: Let's Encrypt)
+   - Update CORS settings in `.env.production`
+
+## Environment Files
+
+1. **Development (.env.development):**
+   ```env
+   PORT=3000
+   NODE_ENV=development
+   CORS_ALLOWED_ORIGIN=*
+   API_KEY=dev_key_123
+   ```
+
+2. **Production (.env.production):**
+   ```env
+   # Server Configuration
+   PORT=3000
+   NODE_ENV=production
+
+   # Rate Limiting
+   RATE_LIMIT_WINDOW=60000  # 1 minute in milliseconds
+   MAX_REQUESTS_PER_WINDOW=5  # Strict limit for production
+
+   # Database Configuration
+   DB_NAME=waitlist.db
+   BACKUP_RETENTION_DAYS=7
+
+   # Security
+   CORS_ALLOWED_ORIGIN=https://your-frontend-domain.com  # ⚠️ Update this with your actual frontend domain!
+   API_KEY=generate_a_secure_key_here  # ⚠️ Generate a secure key (at least 32 characters)
+
+   # Backup Configuration
+   BACKUP_DIRECTORY=backups
+   EXPORT_DIRECTORY=exports
+   MAX_EXPORT_BACKUPS=5
+
+   # ⚠️ Important Production Setup Steps:
+   # 1. Update CORS_ALLOWED_ORIGIN with your actual frontend domain
+   # 2. Generate a secure API key (use a password generator)
+   # 3. Ensure all directories have proper write permissions
+   # 4. Set up SSL certificate for your domain
+   # 5. Configure firewall to allow only port 3000 
    ```
 
 ## Database Management
 
-- SQLite database: `waitlist.db`
-- Daily backups in `backups/` folder
-- Excel exports in `exports/` folder
-- Latest export: `waitlist-current.xlsx`
+The system uses separate databases for development and production:
+
+- Development: `server/dev_data/waitlist_dev.db`
+- Production: `server/prod_data/waitlist.db`
+
+**Management Commands:**
+```bash
+# View entries (development)
+node manage-waitlist.js dev view
+
+# View entries (production)
+node manage-waitlist.js prod view
+
+# Export to Excel
+node manage-waitlist.js dev export  # Development
+node manage-waitlist.js prod export # Production
+
+# Delete entry
+node manage-waitlist.js dev delete-email user@example.com
+node manage-waitlist.js prod delete-email user@example.com
+```
+
+## Security Features
+
+1. **Rate Limiting:**
+   - Development: Disabled
+   - Production: 5 requests per minute per IP
+
+2. **CORS Protection:**
+   - Development: Allows all local IPs
+   - Production: Only allows specified domain
+
+3. **API Key Protection:**
+   - Development: Not enforced
+   - Production: Required for admin endpoints
 
 ## Monitoring
 
-- Check server health: `/health`
-- View statistics: `/api/stats`
-- Logs include request duration and environment
+1. **Health Check:**
+   ```bash
+   curl https://your-api-domain.com/health
+   ```
 
-## Rate Limiting
-
-- 5 requests per minute per IP
-- Configurable in `.env`
-- Prevents form spam
+2. **Statistics:**
+   ```bash
+   curl -H "x-api-key: your_api_key" https://your-api-domain.com/api/stats
+   ```
 
 ## Backup System
 
-- Automatic daily database backups
-- Keeps last 7 backups
-- Excel exports maintain last 5 versions
-
-## Common Tasks
-
-1. **Check Total Signups:**
-   ```bash
-   curl http://localhost:3000/api/stats
-   ```
-
-2. **Manual Backup:**
-   ```bash
-   # Database backup happens automatically daily
-   # For Excel export:
-   node manage-waitlist.js export
-   ```
-
-3. **View Recent Entries:**
-   ```bash
-   node manage-waitlist.js view
-   ```
+- Automatic daily backups in `server/backups/`
+- Keeps last 7 days in production
+- Export to Excel available via management script
 
 ## Troubleshooting
 
-1. **Server won't start:**
-   - Check if port 3000 is free
-     ```bash
-     # Check what's using port 3000
-     netstat -ano | findstr :3000
-     
-     # Kill the process (replace PID with number from above)
-     taskkill /F /PID <PID>
-     ```
-   - Ensure all dependencies are installed
-   - Verify `.env` file exists
+1. **CORS Errors:**
+   - Check `CORS_ALLOWED_ORIGIN` in `.env.production`
+   - Verify frontend domain matches exactly
 
-2. **Can't submit emails:**
-   - Check server is running
-   - Verify API URL in `main.js`
-   - Check browser console for errors
+2. **Connection Issues:**
+   - Verify firewall settings (port 3000)
+   - Check SSL certificate validity
+   - Verify API URL in frontend code
 
-3. **Export not working:**
-   - Ensure `exports` directory exists
-   - Check file permissions
-   - Verify database connection
+3. **Database Issues:**
+   - Check write permissions in data directories
+   - Verify backup directory exists
+   - Check available disk space
 
 ## Support
 
-For detailed waitlist management instructions, see `WAITLIST-MANAGEMENT.md`
+For detailed management instructions, see `WAITLIST-MANAGEMENT.md`

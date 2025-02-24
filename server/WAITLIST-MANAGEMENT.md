@@ -1,100 +1,100 @@
-# Waitlist Management Tool
+# Waitlist Management Guide
 
-A command-line tool to manage your waitlist entries, including viewing, exporting, and deleting records.
+Quick reference guide for managing your waitlist system.
 
-## Prerequisites
+## Quick Commands
 
-Make sure you have the following installed:
-- Node.js
-- Required npm packages (run `npm install` in the server directory)
-
-## Commands
-
-### View All Entries
-View all waitlist entries in the terminal:
+### View Entries
 ```bash
-node manage-waitlist.js view
+# See all signups in development
+node manage-waitlist.js dev view
+
+# See all signups in production
+node manage-waitlist.js prod view
+```
+Use this to:
+- Check new signups
+- Verify email submissions
+- Monitor signup dates and IP addresses
+
+### Export Data
+```bash
+# Export development data to Excel
+node manage-waitlist.js dev export
+
+# Export production data to Excel
+node manage-waitlist.js prod export
+```
+Use this when you need to:
+- Share signup data with team
+- Analyze signups in Excel
+- Create backup of current entries
+
+### Remove Entries
+```bash
+# Remove email from development
+node manage-waitlist.js dev delete-email user@example.com
+
+# Remove email from production
+node manage-waitlist.js prod delete-email user@example.com
+```
+Use this to:
+- Remove spam entries
+- Delete duplicate signups
+- Honor removal requests
+
+## Common Tasks
+
+### 1. Daily Check
+```bash
+# Check new signups
+node manage-waitlist.js prod view
+
+# Export current list
+node manage-waitlist.js prod export
 ```
 
-### Export Options
-
-#### Export to Excel (Recommended)
-Export the waitlist to a formatted Excel file:
+### 2. Cleanup Spam
 ```bash
-node manage-waitlist.js export
-```
-This creates a nicely formatted Excel file with:
-- Blue header row with white text
-- Auto-sized columns
-- Proper date formatting
-- Professional layout
+# View entries to identify spam
+node manage-waitlist.js prod view
 
-The Excel export will:
-- Always save to `exports/waitlist-current.xlsx`
-- Automatically backup the previous version before overwriting
-- Keep the last 5 backups with timestamps
-- Show a preview of the exported data in the terminal
-
-#### Export to CSV
-If you need a CSV format:
-```bash
-node manage-waitlist.js export-csv
+# Remove spam entries
+node manage-waitlist.js prod delete-email spam@example.com
 ```
 
-### Delete Entries
-
-#### Delete by Email
-Remove an entry using their email address:
+### 3. Data Analysis
 ```bash
-node manage-waitlist.js delete-email user@example.com
+# Export to Excel
+node manage-waitlist.js prod export
+# Find file in server/exports/waitlist-[timestamp].xlsx
 ```
-
-#### Delete by ID
-Remove an entry using their ID number:
-```bash
-node manage-waitlist.js delete-id 1
-```
-
-## File Locations
-
-- **Current Export**: Always at `exports/waitlist-current.xlsx`
-- **Export Backups**: Named `waitlist-backup-[timestamp].xlsx` in the `exports` directory
-- **Database**: The SQLite database file is `waitlist.db`
-- **Backups**: Daily database backups are stored in the `backups` directory
-
-## Time Zones
-
-All dates are stored and displayed in UTC to ensure consistency across different time zones.
 
 ## Tips
 
-1. **Regular Backups**: 
-   - Database is backed up daily
-   - Previous Excel exports are automatically backed up
-   - System keeps last 5 export backups
-2. **Excel vs CSV**: Use Excel export for better formatting and readability
-3. **After Deletion**: The system automatically shows remaining entries after any deletion
-4. **Finding Exports**: 
-   - Latest export is always at `waitlist-current.xlsx`
-   - Previous versions are in timestamped backup files
+1. **Always verify environment:**
+   - Use `dev` for testing
+   - Use `prod` for real data
 
-## Example Usage
+2. **Before deleting:**
+   - Always export data first
+   - Double-check email addresses
+   - Keep record of deletions
 
-1. View current entries:
-   ```bash
-   node manage-waitlist.js view
-   ```
+3. **Regular Maintenance:**
+   - Export data weekly
+   - Check for spam daily
+   - Verify backups monthly
 
-2. Export to Excel and check the exports folder:
-   ```bash
-   node manage-waitlist.js export
-   ```
+## Backup Location
 
-3. Remove a specific email:
-   ```bash
-   node manage-waitlist.js delete-email example@email.com
-   ```
+- Development: `server/dev_data/waitlist_dev.db`
+- Production: `server/prod_data/waitlist.db`
+- Exports: `server/exports/`
+- Backups: `server/backups/`
 
-## Support
+## Need Help?
 
-If you need to modify the export format or add new features, the code is well-documented and modular. 
+1. Check the logs in `server/error.log`
+2. Use health check endpoint: `/health`
+3. View stats: `/api/stats` (requires API key) 
