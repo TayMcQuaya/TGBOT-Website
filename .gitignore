@@ -41,9 +41,6 @@ backups/
 
 dev_data/
 
-# Environment Configuration
-js/config.js
-
 # Environment files
 .env.*
 !.env.example
