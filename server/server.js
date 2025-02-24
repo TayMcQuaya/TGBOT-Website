@@ -95,15 +95,31 @@ async function initializeDatabase() {
     try {
         await connectDatabase();
         
-        db.run(`CREATE TABLE IF NOT EXISTS waitlist (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            email TEXT UNIQUE,
-            signup_date DATETIME DEFAULT CURRENT_TIMESTAMP
-        )`);
-        
-        db.run(`CREATE INDEX IF NOT EXISTS idx_email ON waitlist(email)`);
-        
-        console.log('Database initialized successfully');
+        return new Promise((resolve, reject) => {
+            db.serialize(() => {
+                db.run(`CREATE TABLE IF NOT EXISTS waitlist (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    email TEXT UNIQUE,
+                    signup_date DATETIME DEFAULT CURRENT_TIMESTAMP
+                )`, (err) => {
+                    if (err) {
+                        console.error('Error creating table:', err);
+                        reject(err);
+                        return;
+                    }
+                    
+                    db.run(`CREATE INDEX IF NOT EXISTS idx_email ON waitlist(email)`, (err) => {
+                        if (err) {
+                            console.error('Error creating index:', err);
+                            reject(err);
+                            return;
+                        }
+                        console.log('Database initialized successfully');
+                        resolve();
+                    });
+                });
+            });
+        });
     } catch (err) {
         console.error('Database initialization failed:', err);
         process.exit(1);
