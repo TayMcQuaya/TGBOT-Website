@@ -228,6 +228,8 @@ button:hover {
     padding: 80px 0;
     position: relative;
     overflow: hidden;
+    margin: 40px 0;
+    padding: 100px 0;
 }
 
 .features-background {
@@ -244,6 +246,7 @@ button:hover {
     width: 100%;
     height: 100%;
     object-fit: cover;
+    transform: scale(1.5);
 }
 
 .feature-card {
@@ -283,6 +286,8 @@ button:hover {
     gap: 40px;
     padding: 80px 0;
     align-items: center;
+    margin: 40px 0;
+    padding: 100px 0;
 }
 
 .benefit-image img {
@@ -586,4 +591,136 @@ nav {
         flex-direction: column;
         gap: 5px;
     }
+}
+
+/* User Types Section */
+.user-types {
+    padding: 80px 0;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+    margin: 40px 0;
+    padding: 100px 0;
+}
+
+/* Add background styling for user-types */
+.user-types-background {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0.05;
+    z-index: 0;
+}
+
+.user-types-bg-image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transform: scale(1.1);
+}
+
+.section-title {
+    position: relative;
+    z-index: 1;
+    font-size: 36px;
+    margin-bottom: 40px;
+    background: var(--accent-gradient);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    display: inline-block;
+}
+
+.user-types-grid {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 30px;
+    margin-top: 40px;
+}
+
+.user-type-card {
+    background: var(--card-bg);
+    padding: 40px;
+    border-radius: 10px;
+    border: 1px solid var(--border-color);
+    transition: all 0.3s ease;
+    text-align: left;
+}
+
+.user-type-card:hover {
+    transform: translateY(-5px);
+    border-color: var(--accent-blue);
+    box-shadow: 0 8px 20px rgba(37, 99, 235, 0.2);
+}
+
+.user-type-card i {
+    font-size: 40px;
+    margin-bottom: 20px;
+    color: var(--accent-blue);
+}
+
+.user-type-card h3 {
+    font-size: 24px;
+    margin-bottom: 15px;
+}
+
+.user-type-card p {
+    color: var(--text-gray);
+    margin-bottom: 20px;
+    line-height: 1.6;
+}
+
+.user-type-card ul {
+    list-style: none;
+    padding: 0;
+}
+
+.user-type-card ul li {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+    color: var(--text-light);
+}
+
+.user-type-card ul li i {
+    font-size: 16px;
+    margin: 0;
+    color: var(--accent-green);
+}
+
+/* Mobile responsiveness update */
+@media (max-width: 768px) {
+    .user-types-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .section-title {
+        font-size: 28px;
+    }
+
+    .user-type-card {
+        padding: 30px;
+    }
+}
+
+/* Optional: Add a subtle separator between sections */
+.features::after,
+.user-types::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 80%;
+    height: 1px;
+    background: linear-gradient(90deg, 
+        transparent, 
+        var(--border-color),
+        transparent
+    );
 } 
