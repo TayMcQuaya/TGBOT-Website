@@ -25,70 +25,38 @@ const {
 
 const isDevelopment = NODE_ENV === 'development';
 
-// Security middleware - configured for both environments
+// Security middleware
 app.use(helmet({
-    contentSecurityPolicy: isDevelopment ? false : undefined, // Disable CSP in development
+    contentSecurityPolicy: isDevelopment ? false : undefined,
 }));
 app.disable('x-powered-by');
 
 // Logging configuration
 if (isDevelopment) {
-    // Development: Log everything to console
     app.use(morgan('dev'));
 } else {
-    // Production: Log errors to file, basic logs to console
     app.use(morgan('combined', {
         skip: (req, res) => res.statusCode < 400,
         stream: fs.createWriteStream(path.join(__dirname, 'error.log'), { flags: 'a' })
     }));
-    app.use(morgan('short')); // Basic logging to console
+    app.use(morgan('short'));
 }
 
-// Rate limiting - more lenient in development
+// Rate limiting
 const limiter = rateLimit({
     windowMs: parseInt(RATE_LIMIT_WINDOW),
     max: parseInt(MAX_REQUESTS_PER_WINDOW),
     message: { error: 'Too many requests. Please try again later.' },
     standardHeaders: true,
     legacyHeaders: false,
-    skip: isDevelopment ? (req) => true : undefined // Skip rate limiting in development
+    skip: isDevelopment ? (req) => true : undefined
 });
 
 app.use(limiter);
 
 // CORS configuration
 const corsOptions = {
-    origin: function(origin, callback) {
-        if (isDevelopment) {
-            // In development, allow requests from:
-            // 1. No origin (like Postman)
-            // 2. localhost with any port
-            // 3. Local IP addresses with any port
-            if (!origin) {
-                callback(null, true);
-                return;
-            }
-
-            try {
-                const url = new URL(origin);
-                const isLocalhost = url.hostname === 'localhost' || url.hostname === '127.0.0.1';
-                const isLocalIP = url.hostname.match(/^(192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)/) !== null;
-                
-                if (isLocalhost || isLocalIP) {
-                    callback(null, true);
-                    return;
-                }
-            } catch (error) {
-                callback(new Error('Invalid origin'));
-                return;
-            }
-            
-            callback(new Error('Not allowed by CORS'));
-        } else {
-            // In production, only allow the specified domain
-            callback(null, CORS_ALLOWED_ORIGIN === origin);
-        }
-    },
+    origin: CORS_ALLOWED_ORIGIN,
     methods: ['GET', 'POST', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'x-api-key'],
     credentials: true

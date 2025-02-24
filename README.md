@@ -286,3 +286,6 @@ node manage-waitlist.js prod delete-email user@example.com
 ## Support
 
 For detailed management instructions, see `WAITLIST-MANAGEMENT.md`
+
+Upload the server.js file to the server.
+scp server/server.js root@167.99.149.113:/var/www/waitlist-app/server/server.js
